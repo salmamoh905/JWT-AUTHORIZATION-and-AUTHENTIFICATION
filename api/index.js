@@ -15,8 +15,37 @@ const users=[
         password:"amir4147",
         isAdmin:false
     }
-]
+];
+//refresh
+let refreshTokens =[]
+app.post("/api/refresh",(req,res)=>{
+    //take the refresh token from the user
+    const refreshToken = req.body.token
 
+
+    //send error if there is no token or invalid token
+    if(!refreshToken){
+        res.status(401).json("you are not authenticated!")
+    }
+    if(!refreshTokens.includes(refreshToken)){
+        return res.status(401).json("Refresh token is not valid")
+    }
+    jwt.verify(refreshToken, "myRefreshSecreteKey", (err,user)=>{
+        err && console.log(err);
+        refreshTokens = refreshTokens.filter((token)=>token !==refreshToken)
+    })
+
+
+    //if everything is ok then create acccess token, refresh token and send to user
+})
+const generateRefreshToken=(user)=>{
+   return jwt.sign({
+        id:user.id,
+        isAdmin:user.isAdmin
+    },"myRefreshSecreteKey");
+      
+
+}
 app.post("/api/login",(req,res)=>{
    const {name,password}=req.body;
    const user = users.find((u)=>{
@@ -28,12 +57,20 @@ app.post("/api/login",(req,res)=>{
        const accessToken = jwt.sign({
            id:user.id,
            isAdmin:user.isAdmin
-       },"mySecreteKey");
+       },"mySecreteKey",{
+           expiresIn:("15m")
+       });
+       const refreshToken=generateRefreshToken(user);
+       refreshTokens.push(refreshToken)
+
+
        res.json({
-           username:user.username,
-           isAdmin:user.isAdmin,
-           accessToken
-       })
+        username:user.username,
+        isAdmin:user.isAdmin,
+        accessToken,
+        refreshToken
+
+    })
 
    }else{
        res.status(400).json("username or password is incorrect")
@@ -59,6 +96,14 @@ const verify =(req,res,next)=>{
     }else{
         res.status(401).json("you are not authenticated")
     }
-}
+};
+
+app.delete("/api/users/:userId",verify,(req,res)=>{
+    if(req.user.id===req.params.id ||req.user.isAdmin){
+        res.status(200).json("user is deleted")
+    }else{
+        req.status(403).json("you are not allowed to delete a user!");
+    }
+})
 
 app.listen(5000,()=> console.log("backend server is running"))
